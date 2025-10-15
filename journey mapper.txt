@@ -1,0 +1,120 @@
+import com.mongodb.client.*;
+import com.mongodb.client.model.Filters;
+import org.bson.Document;
+
+import java.util.Scanner;
+
+public class CustomerJourneyMongo {
+    private static final String DATABASE_NAME = "customer_journey_db";
+    private static final String COLLECTION_NAME = "journey_stages";
+
+    public static void main(String[] args) {
+        try (MongoClient mongoClient = MongoClients.create("mongodb://localhost:27017")) {
+            MongoDatabase database = mongoClient.getDatabase(DATABASE_NAME);
+            MongoCollection<Document> collection = database.getCollection(COLLECTION_NAME);
+
+            Scanner sc = new Scanner(System.in);
+            int choice;
+
+            do {
+                System.out.println("\n--- Customer Journey Mapper (MongoDB) ---");
+                System.out.println("1. Add a new stage");
+                System.out.println("2. View all stages");
+                System.out.println("3. Edit a stage");
+                System.out.println("4. Delete a stage");
+                System.out.println("5. Exit");
+                System.out.print("Enter your choice: ");
+                choice = sc.nextInt();
+                sc.nextLine();
+
+                switch (choice) {
+                    case 1:
+                        addStage(sc, collection);
+                        break;
+                    case 2:
+                        viewStages(collection);
+                        break;
+                    case 3:
+                        editStage(sc, collection);
+                        break;
+                    case 4:
+                        deleteStage(sc, collection);
+                        break;
+                    case 5:
+                        System.out.println("Exiting... Thank you!");
+                        break;
+                    default:
+                        System.out.println("Invalid choice!");
+                }
+            } while (choice != 5);
+        }
+    }
+
+    private static void addStage(Scanner sc, MongoCollection<Document> collection) {
+        System.out.print("Enter Stage Name: ");
+        String name = sc.nextLine();
+        System.out.print("Enter Description: ");
+        String desc = sc.nextLine();
+        System.out.print("Enter Touchpoint: ");
+        String touch = sc.nextLine();
+
+        Document stage = new Document("stageName", name)
+                .append("description", desc)
+                .append("touchpoint", touch);
+
+        collection.insertOne(stage);
+        System.out.println("✅ Stage added successfully to MongoDB!");
+    }
+
+    private static void viewStages(MongoCollection<Document> collection) {
+        System.out.println("\n📋 Customer Journey Stages:");
+        try (MongoCursor<Document> cursor = collection.find().iterator()) {
+            int count = 0;
+            while (cursor.hasNext()) {
+                Document stage = cursor.next();
+                count++;
+                System.out.println(count + ". Stage: " + stage.getString("stageName"));
+                System.out.println("   Description: " + stage.getString("description"));
+                System.out.println("   Touchpoint: " + stage.getString("touchpoint"));
+                System.out.println();
+            }
+            if (count == 0)
+                System.out.println("No stages found.");
+        }
+    }
+
+    private static void editStage(Scanner sc, MongoCollection<Document> collection) {
+        System.out.print("Enter the stage name to edit: ");
+        String stageName = sc.nextLine();
+
+        Document existingStage = collection.find(Filters.eq("stageName", stageName)).first();
+        if (existingStage == null) {
+            System.out.println("Stage not found!");
+            return;
+        }
+
+        System.out.print("Enter new description (leave blank to keep): ");
+        String desc = sc.nextLine();
+        System.out.print("Enter new touchpoint (leave blank to keep): ");
+        String touch = sc.nextLine();
+
+        if (!desc.isEmpty())
+            existingStage.put("description", desc);
+        if (!touch.isEmpty())
+            existingStage.put("touchpoint", touch);
+
+        collection.replaceOne(Filters.eq("stageName", stageName), existingStage);
+        System.out.println("✅ Stage updated successfully!");
+    }
+
+    private static void deleteStage(Scanner sc, MongoCollection<Document> collection) {
+        System.out.print("Enter the stage name to delete: ");
+        String stageName = sc.nextLine();
+
+        long deletedCount = collection.deleteOne(Filters.eq("stageName", stageName)).getDeletedCount();
+        if (deletedCount > 0)
+            System.out.println("🗑 Stage deleted successfully!");
+        else
+            System.out.println("Stage not found.");
+    }
+}
